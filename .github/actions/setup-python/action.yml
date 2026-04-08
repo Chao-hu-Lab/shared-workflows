@@ -31,4 +31,6 @@ runs:
 
     - name: Install dependencies
       shell: pwsh
-      run: uv pip install ${{ inputs.install-args }} --system
+      run: |
+        uv venv
+        uv pip install ${{ inputs.install-args }}
