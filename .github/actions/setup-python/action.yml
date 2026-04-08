@@ -30,5 +30,5 @@ runs:
         enable-cache: true
 
     - name: Install dependencies
-      shell: bash
+      shell: pwsh
       run: uv pip install ${{ inputs.install-args }} --system

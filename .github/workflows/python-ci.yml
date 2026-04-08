@@ -40,7 +40,7 @@ jobs:
           submodules: ${{ inputs.submodules && 'true' || 'false' }}
 
       - name: Run tests
-        shell: bash
+        shell: pwsh
         run: pytest tests/ ${{ inputs.test-args }}
         env:
           PYTHONPATH: ${{ inputs.pythonpath }}
