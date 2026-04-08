@@ -27,7 +27,7 @@ on:
 jobs:
   test:
     name: "Test (Python ${{ matrix.python-version }})"
-    runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, Windows, X64]
     strategy:
       fail-fast: false
       matrix:
