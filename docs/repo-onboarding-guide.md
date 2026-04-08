@@ -1,7 +1,8 @@
 # Repo Onboarding Guide — 接入 shared-workflows
 
 將新 repo 接入 Chao-hu-Lab/shared-workflows 的標準流程。
-基於 ms-preprocessing-toolkit 的實際遷移經驗撰寫。
+支援兩種 repo 型態：A（pyproject.toml + submodule）和 B（requirements.txt 傳統專案）。
+基於 ms-preprocessing-toolkit 和 Data_Normalization_project_v2 的實際遷移經驗撰寫。
 
 ---
 
@@ -339,7 +340,21 @@ jobs:
 
 ---
 
-### 6. 測試的 SimpleNamespace 缺少新增欄位
+### 6. `Failed to spawn: pytest`（requirements.txt 型 repo）
+
+**症狀：** CI 觸發成功，依賴安裝正常，但 `uv run pytest` 報 `Failed to spawn: pytest`。
+
+**原因：** `install-args: "-r requirements.txt"` 只安裝 runtime dependencies。`-e .[dev]` 會自動裝 pytest（因為 `[dev]` extras 包含測試套件），但 requirements.txt 不會。
+
+**修復：** 在 `install-args` 中加上 pytest：
+```yaml
+install-args: "-r requirements.txt pytest"   # ✅ 包含測試工具
+install-args: "-r requirements.txt"           # ❌ 缺少 pytest
+```
+
+---
+
+### 7. 測試的 SimpleNamespace 缺少新增欄位
 
 **症狀：** `AttributeError: 'types.SimpleNamespace' object has no attribute 'xxx'`，測試 return code 為 1。
 
