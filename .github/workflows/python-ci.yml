@@ -1,0 +1,46 @@
+name: "Python CI (Reusable)"
+
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        description: "JSON array of Python versions, e.g. '[\"3.11\", \"3.12\"]'"
+        type: string
+        required: false
+        default: '["3.11", "3.12"]'
+      pythonpath:
+        description: "Value for PYTHONPATH env var during tests"
+        type: string
+        required: false
+        default: ""
+      submodules:
+        description: "Checkout submodules recursively"
+        type: boolean
+        required: false
+        default: false
+      test-args:
+        description: "Extra arguments passed to pytest"
+        type: string
+        required: false
+        default: "-v --tb=short -x"
+
+jobs:
+  test:
+    name: "Test (Python ${{ matrix.python-version }})"
+    runs-on: [self-hosted, windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJson(inputs.python-versions) }}
+
+    steps:
+      - uses: Chao-hu-Lab/shared-workflows/.github/actions/setup-python@main
+        with:
+          python-version: ${{ matrix.python-version }}
+          submodules: ${{ inputs.submodules && 'true' || 'false' }}
+
+      - name: Run tests
+        shell: bash
+        run: pytest tests/ ${{ inputs.test-args }}
+        env:
+          PYTHONPATH: ${{ inputs.pythonpath }}
