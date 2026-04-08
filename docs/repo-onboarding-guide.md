@@ -75,7 +75,7 @@ jobs:
     uses: Chao-hu-Lab/shared-workflows/.github/workflows/python-ci.yml@main
     with:
       python-versions: '["3.11", "3.12"]'
-      install-args: "-r requirements.txt"   # ← 關鍵差異
+      install-args: "-r requirements.txt pytest"  # ← 關鍵差異：需含 pytest
       pythonpath: "src"
       submodules: false
 ```
