@@ -18,6 +18,11 @@ on:
         type: boolean
         required: false
         default: false
+      install-args:
+        description: "Arguments for uv pip install (e.g. '-r requirements.txt' for traditional repos)"
+        type: string
+        required: false
+        default: "-e .[dev]"
       test-args:
         description: "Extra arguments passed to pytest"
         type: string
@@ -38,6 +43,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           submodules: ${{ inputs.submodules && 'true' || 'false' }}
+          install-args: ${{ inputs.install-args }}
 
       - name: Run tests
         shell: pwsh

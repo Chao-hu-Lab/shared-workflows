@@ -39,6 +39,8 @@ git commit -m "chore: update remote URLs to Chao-hu-Lab org"
 
 刪除舊的 CI workflow 內容，替換為：
 
+### A. pyproject.toml 型 repo（有 `.[dev]` extras）
+
 ```yaml
 name: CI
 
@@ -57,17 +59,42 @@ jobs:
       submodules: false       # 有 submodule 時改 true
 ```
 
-### 必填參數對照
+### B. requirements.txt 型 repo（傳統專案）
 
-| 參數 | 用途 | 範例 |
-|------|------|------|
-| `python-versions` | matrix 版本 | `'["3.11", "3.12"]'` |
-| `pythonpath` | 測試時的 PYTHONPATH | `"ms-core/src"` 或 `""` |
-| `submodules` | 是否 checkout submodule | `true` / `false` |
+```yaml
+name: CI
+
+on:
+  push:
+    branches: ["master", "main", "feature/*", "fix/*", "refactor/*"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  test:
+    uses: Chao-hu-Lab/shared-workflows/.github/workflows/python-ci.yml@main
+    with:
+      python-versions: '["3.11", "3.12"]'
+      install-args: "-r requirements.txt"   # ← 關鍵差異
+      pythonpath: "src"
+      submodules: false
+```
+
+### 參數對照
+
+| 參數 | 用途 | 預設值 | 範例 |
+|------|------|--------|------|
+| `python-versions` | matrix 版本 | `'["3.11", "3.12"]'` | — |
+| `install-args` | uv pip install 參數 | `"-e .[dev]"` | `"-r requirements.txt"` |
+| `pythonpath` | 測試時的 PYTHONPATH | `""` | `"src"`, `"ms-core/src"` |
+| `submodules` | 是否 checkout submodule | `false` | `true` / `false` |
+| `test-args` | 額外 pytest 參數 | `"-v --tb=short -x"` | `"--tb=long"` |
 
 ---
 
 ## Step 3：新增 build.yml
+
+### A. pyproject.toml 型 repo
 
 ```yaml
 name: Build Desktop Packages
@@ -93,7 +120,56 @@ jobs:
       spec-file: "<your-app>.spec"
       executable-name: "<your-app>"
       artifact-prefix: "<your-app>"
+      pythonpath: "ms-core/src"                                          # 有 submodule 時
+      verify-command: "{exe} --version"
+      extra-package-files: '[{"src":"docs/release/README.md","dst":"README.md"},{"src":"LICENSE","dst":"LICENSE"}]'
 ```
+
+### B. requirements.txt 型 repo
+
+```yaml
+name: Build Desktop Packages
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      upload_artifact:
+        description: "Upload as artifact (for testing without a tag)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: Chao-hu-Lab/shared-workflows/.github/workflows/python-build.yml@main
+    with:
+      upload_artifact: ${{ inputs.upload_artifact || false }}
+      spec-file: "build/<your-app>.spec"
+      executable-name: "<your-app>"
+      artifact-prefix: "<your-app>"
+      install-command: "pip install -r requirements.txt pyinstaller"     # ← 關鍵差異
+      pythonpath: "src"
+      version-source: "tag"                                              # ← 無 pyproject.toml
+      extra-package-files: '[{"src":"README.md","dst":"README.md"}]'
+```
+
+### Build 參數對照
+
+| 參數 | 用途 | 預設值 |
+|------|------|--------|
+| `spec-file` | PyInstaller spec 檔路徑 | `"ms-preprocessing.spec"` |
+| `executable-name` | 產出執行檔名（不含副檔名） | `"ms-preprocessing"` |
+| `artifact-prefix` | artifact zip 前綴 | `"ms-preprocessing"` |
+| `install-command` | 安裝指令 | `"pip install -e . pyinstaller"` |
+| `pythonpath` | 建置用 PYTHONPATH | `""` |
+| `version-source` | 版號來源：`pyproject` 或 `tag` | `"pyproject"` |
+| `platforms` | 建置平台 JSON | `'["windows", "macos"]'` |
+| `extra-package-files` | 額外打包檔案 JSON | `'[]'` |
+| `verify-command` | 驗證指令（`{exe}` 為佔位符） | `""`（跳過） |
 
 > **注意：** `permissions: contents: write` 在 `workflow_call` 架構下必須放在 caller workflow 的最外層，放在 job 層級會被忽略。
 
