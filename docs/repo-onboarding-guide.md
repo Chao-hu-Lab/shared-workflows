@@ -367,6 +367,80 @@ grep -rn "SimpleNamespace" tests/ --include="*.py"
 
 ---
 
+### 8. PR shard 看起來卡死，其實是 Qt 視窗沒有真正釋放
+
+**症狀：**
+- `PR GUI Shell Smoke` 或 `PR Statistics Smoke` 長時間停在 `in_progress`
+- 單一檔案前半段測試很快，後半段越跑越慢
+- 在 self-hosted Windows runner 上特別明顯，看起來像 CI 卡住，但其實是測試過程持續累積 GUI 物件
+
+**原因：**
+- 測試只呼叫 `window.close()`，Qt 視窗只是被關閉/隱藏，未必會立刻刪除
+- `MainWindow` 內若同時有延後執行的 `QTimer.singleShot(...)`、全域 `logger` handler、theme callback 等資源，舊視窗沒有完整清掉時，下一顆測試建立新視窗就會越來越慢
+
+**修復：**
+- 主視窗加上 `WA_DeleteOnClose`
+- 把裸 `QTimer.singleShot(...)` 改成受 `self` 管理的 single-shot timer
+- 在 `closeEvent(...)` 內對稱清理 theme callback、log handler、active workers
+- GUI 測試統一用 helper 做真正清理：
+
+```python
+window.close()
+window.deleteLater()
+QCoreApplication.sendPostedEvents(None, int(QEvent.Type.DeferredDelete))
+qapp.processEvents()
+```
+
+**經驗法則：**
+- 若同一個 GUI 測試檔案在 CI 上愈跑愈慢，先不要直覺怪 runner；優先檢查視窗與 Qt child objects 是否真的被刪除
+- shared helper 要被所有 GUI 測試檔案一致使用，否則只修一部分 shard 還是會在另一部分復發
+
+---
+
+### 9. 互動式圖表上線後，舊測試很容易變成 stale test
+
+**症狀：**
+- Step 5 測試失敗，但產品功能手動操作正常
+- 常見錯誤是 `AttributeError`，例如測試塞了一個假物件，卻被新的 interactive 路徑讀取 `scores`、`labels` 等欄位
+
+**原因：**
+- 原本的測試是假設 PCA / PLS-DA / OPLS-DA score plot 一定走 Matplotlib
+- 實作更新後，GUI 會優先走 interactive Plotly 路徑；若測試只 monkeypatch 舊函式（如 `plot_pca_score`），就會因為沒有攔到真正被呼叫的函式而失敗
+
+**修復：**
+- 先確認目前 GUI 的實際 routing，再更新測試
+- 不要只測舊路徑，應改成：
+  - 一支測 interactive 路徑有被呼叫
+  - 一支測 interactive 不可用時會 fallback 到 Matplotlib canvas
+
+**經驗法則：**
+- GUI 行為從 static 變 interactive 時，最容易過時的是測試，不一定是產品
+- 測試名稱也要一起重命名，不要保留與現況不符的舊語意
+
+---
+
+### 10. 拆 CI shard 後，Branch Protection / Ruleset 的 check 名稱要一起對齊
+
+**症狀：**
+- GitHub 畫面上所有實際 job 都綠了，但 PR 仍然顯示不可 merge
+- 或者每次 push 看起來會多出兩組 CI，實際上是 ruleset 仍在等舊名稱的 required check
+
+**原因：**
+- 重構 CI 時改了 job name / aggregator name，但 repo ruleset 還在要求舊的 status check 名稱
+- GitHub 對 required checks 是比對「精確名稱」，不是看你覺得它們邏輯上是否等價
+
+**修復：**
+- 如果有 PR shard + aggregator，優先保留一個穩定的 required check 名稱，例如：
+  - `Full Regression (Python 3.11)`
+- CI 拆分或更名後，至少讓 workflow 跑過一次，再到 Rulesets 更新 required status checks
+- 若 caller workflow 和 reusable workflow 的顯示名稱不同，也要以 GitHub 實際顯示的名稱為準
+
+**經驗法則：**
+- CI refactor 不只是 workflow YAML 變更，ruleset / branch protection 也是 migration 的一部分
+- 如果想降低後續維護成本，aggregator job 名稱應盡量保持穩定
+
+---
+
 ## 快速參考：最終檔案結構
 
 ```
